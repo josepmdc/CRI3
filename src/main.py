@@ -15,46 +15,69 @@ def train_test_split(dataset, train_size=0.7, random_state=42):
 def extract_words(dataset):
     """
     returns a dictionary like this:
-    { 
-        'word' : {
-            'positive' : count_of_positive,
-            'negative' : count_of_negative
-        }
-    }
+    { 'word' : [count_of_positive, count_of_negative], ... }
     """
-    words = dict()
-    n_positives = 0
-    n_negatives = 0
-    for _, tweet in dataset.iterrows():
-        for word in str(tweet['tweetText']).split():
-            words[word] = words.setdefault(word, { 'positive' : 0, 'negative' : 0 })
-            if tweet['sentimentLabel'] == 0:
-                words[word]['negative'] += 1
-                n_negatives += 1
-            else:
-                words[word]["positive"] += 1
-                n_positives += 1
-    return words, n_positives, n_negatives
+    pos, neg = [x for _, x in df.groupby(df['sentimentLabel'] == 0)]
+
+    positive_counts = Counter()
+    pos['tweetText'].apply(lambda x: positive_counts.update(x.lower().split()))
+
+    negative_counts = Counter()
+    neg['tweetText'].apply(lambda x: negative_counts.update(x.lower().split()))
+
+    return dict(positive_counts), dict(negative_counts)
+
+    # words = dict()
+    # n_positives = 0
+    # n_negatives = 0
+    # for _, tweet in dataset.iterrows():
+    #     for word in str(tweet['tweetText']).split():
+    #         sentiment = tweet['sentimentLabel']
+    #         words[word] = words.setdefault(word, [0, 0])
+    #         words[word][sentiment] += 1
+    # return words
 
 def compute_probability_table(words, n_positives, n_negatives):
     """
     returns a dictionary like this:
-    { 
-        'word' : {
-            'positive' : P(word|positive),
-            'negative' : P(word|negative)
-        }
-    }
+    { 'word' : [P(word|negative), P(word|positive)], ... }
     """
-    return dict(map(lambda word: (word[0], {
-        "positive": word[1]["positive"] / n_positives,
-        "negative": word[1]["negative"] / n_negatives 
-        }), words.items()))
+    return dict(map(lambda word: 
+            (word[0], [word[1][0] / n_negatives, word[1][1] / n_positives]), 
+        words.items()))
 
 def main():
     dataset = load_dataset()
-    train, _ = train_test_split(dataset, train_size=0.7, random_state=42)
-    words, n_positives, n_negatives = extract_words(train)
-    print(compute_probability_table(words, n_positives, n_negatives))
+
+    counts = dataset['sentimentLabel'].value_counts()
+    n_negatives = counts[0]
+    n_positives = counts[1]
+
+    train, test = train_test_split(dataset, train_size=0.7, random_state=42)
+    
+    positive_words, negative_words = extract_words(train)
+    word_probabilities = compute_probability_table(positive_words, negative_words, n_positives, n_negatives)
+    
+    total = n_positives + n_negatives
+    probability_positive = n_positives / total
+    probability_negative = n_negatives / total
+
+    tp = 0
+    tn = 0
+
+    for _, tweet in test.iterrows():
+        positive = probability_positive
+        negative = probability_negative
+        for word in str(tweet['tweetText']).split():
+            negative *= word_probabilities.setdefault(word, [0, 0])[0]
+            positive *= word_probabilities.setdefault(word, [0, 0])[1]
+
+        sentiment = int(positive > negative)
+        if sentiment == tweet['sentimentLabel']:
+            tp += 1
+        else:
+            tn += 1
+
+    print(f'TP: {tp}, TN: {tn}')
 
 main()
