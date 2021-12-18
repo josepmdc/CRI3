@@ -1,3 +1,4 @@
+import numpy as np
 from collections import Counter
 
 class BayesClassifier():
@@ -10,25 +11,24 @@ class BayesClassifier():
 
         self.__load_stopwords()
     
-    def fit(self, features, target):
-        self.features = features
-        self.target = target
-        self.dataset = features.join(target)
-        self.n_features = len(features)
+    def fit(self, X, y):
+        self.X = X
+        self.y = y
+        self.n_features = len(X)
 
         self.__count_target_values()
         self.__compute_target_probabilities()
         self.__extract_words()
         self.__compute_probability_table()
      
-    def predict(self, features, target):
+    def predict(self, X, y):
         self.tp = 0
         self.tn = 0
         self.fp = 0
         self.fn = 0
 
         predictions = list()
-        for text, sentiment in zip(features['tweetText'], target):
+        for text, sentiment in zip(X, y):
             positive = self.probability_positive
             negative = self.probability_negative
             for word in str(text).split():
@@ -53,7 +53,7 @@ class BayesClassifier():
             elif predicted_sentiment == 0 and sentiment == 1:
                 self.fn += 1
 
-        return predictions
+        return np.array(predictions)
 
     def classification_report(self):
         accuracy = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)
@@ -72,9 +72,8 @@ class BayesClassifier():
         print(f'f1 score: {f1_score:.2f}')
 
     def __count_target_values(self):
-        counts = self.target.value_counts()
-        self.n_negatives = counts[0]
-        self.n_positives = counts[1]
+        self.n_negatives = np.count_nonzero(self.y == 0)
+        self.n_positives = np.count_nonzero(self.y == 1)
 
     def __compute_target_probabilities(self):
         total = self.n_positives + self.n_negatives
@@ -84,25 +83,26 @@ class BayesClassifier():
     def __extract_words(self):
         """
         outcome:
-            self.positive_words:  { "word" : freq. of word given sentiment is positive, ... }
-            self.negative_words:  { "word" : freq. of word given sentiment is negative, ... }
+            self.positive_words:  { "word" : occurances of word given sentiment is positive, ... }
+            self.negative_words:  { "word" : occurances of word given sentiment is negative, ... }
         """
-        neg, pos = [x for _, x in self.dataset.groupby('sentimentLabel')]
+        neg = self.X[self.y == 0]
+        pos = self.X[self.y == 1]
     
-        positive_counts = Counter()
-        pos['tweetText'].apply(lambda tweet: positive_counts.update([
-            word for word in str(tweet).lower().split()
-            if not self.ignore_stopwords or word not in self.stopwords
-        ]))
+        counter = Counter()
 
-        negative_counts = Counter()
-        neg['tweetText'].apply(lambda tweet: negative_counts.update([
-            word for word in str(tweet).lower().split()
-            if not self.ignore_stopwords or word not in self.stopwords
-        ]))
+        count_words = np.vectorize(
+                lambda tweet: counter.update([
+                    word.lower() for word in str(tweet).split()
+                ]))
 
-        self.positive_words = dict(positive_counts)
-        self.negative_words = dict(negative_counts)
+        count_words(pos)
+        self.positive_words = dict(counter)
+        
+        counter = Counter() # reset the counter
+
+        count_words(neg)
+        self.negative_words = dict(counter)
 
     def __compute_probability_table(self):
         """
@@ -110,7 +110,8 @@ class BayesClassifier():
             self.word_probabilities: { 'word' : [P(word|negative), P(word|positive)], ... }
         """
         self.word_probabilities = dict()
-        smoothing = self.n_features * self.laplace
+        word_count = len(set().union(self.positive_words.keys(), self.negative_words.keys()))
+        smoothing = word_count * self.laplace
 
         for word, freq in self.negative_words.items():
             self.word_probabilities.setdefault(word, [0, 0])[0] = \
