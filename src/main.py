@@ -1,39 +1,31 @@
-import numpy as np
-import pandas as pd
+import util
 from BayesClassifier import BayesClassifier
-from sklearn.metrics import classification_report
 
-def load_dataset():
-    dataset = pd.read_csv('data/FinalStemmedSentimentAnalysisDataset.csv', delimiter=';')
-    dataset.drop(['tweetId', 'tweetDate'], axis=1, inplace=True)
-    return dataset
- 
-def train_test_split(dataset, train_size=0.7, random_state=42):
-    # We group by sentiment label and randomly select 'train_size' of each 
-    # group, this way we have the same proportion of each class on each split
-    train = dataset.groupby('sentimentLabel', group_keys=False).apply(
-            lambda x: x.sample(frac=train_size, random_state=random_state))
-    # For the test split we select all the elements we didn't select from the train split
-    test = dataset.drop(train.index).to_numpy()
-    train = train.to_numpy()
-    return train[:,0], test[:,0], train[:,1].astype(int), test[:,1].astype(int)
+dataset = util.load_dataset()
+
+print("==> Testing different partition sizes\n")
+for size in [0.60, 0.70, 0.80]:
+    print(f"=== Train {size*100}%, Test size: {(100-size*100)}% ===\n")
+    X_train, X_test, y_train, y_test = util.train_test_split(dataset, train_size=size, random_state=42)
+
+    bayes = BayesClassifier()
+    bayes.fit(X_train, y_train)
+    predictions = bayes.predict(X_test, y_test)
+    bayes.classification_report()
+
+    print("Without laplace smoothing")
+    bayes = BayesClassifier(laplace=0)
+    bayes.fit(X_train, y_train)
+    predictions = bayes.predict(X_test, y_test)
+    bayes.classification_report()
 
 
-dataset = load_dataset()
-X_train, X_test, y_train, y_test = train_test_split(dataset, train_size=0.7, random_state=42)
+X_train, X_test, y_train, y_test = util.train_test_split(dataset, train_size=0.7, random_state=42)
 
-bayes = BayesClassifier(ignore_stopwords=True)
-bayes.fit(X_train, y_train)
-predictions = bayes.predict(X_test, y_test)
-print(predictions.shape)
-print(y_test.shape)
-print(classification_report(y_test, predictions))
-bayes.classification_report()
-
-bayes = BayesClassifier(laplace=0, ignore_stopwords=True)
-bayes.fit(X_train, y_train)
-predictions = bayes.predict(X_test, y_test)
-print(predictions.shape)
-print(y_test.shape)
-print(classification_report(y_test, predictions))
-bayes.classification_report()
+print("==> Testing different dictionary sizes\n")
+for size in [100, 1000, 10000, None]: # if None size = all_words
+    print(f"=== Dictinary Size {size} ===\n")
+    bayes = BayesClassifier(dictionary_size=size)
+    bayes.fit(X_train, y_train)
+    predictions = bayes.predict(X_test, y_test)
+    bayes.classification_report()
