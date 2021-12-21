@@ -1,4 +1,3 @@
-from math import log
 import numpy as np
 from collections import Counter
 
@@ -10,6 +9,10 @@ class BayesClassifier():
         self.word_probabilities = dict()
         self.ignore_stopwords = ignore_stopwords
         self.dictionary_size = dictionary_size
+        self.tp = 0
+        self.tn = 0
+        self.fp = 0
+        self.fn = 0
 
         self.__load_stopwords()
     
@@ -24,13 +27,9 @@ class BayesClassifier():
         self.__compute_probability_table()
      
     def predict(self, X, y):
-        self.tp = 0
-        self.tn = 0
-        self.fp = 0
-        self.fn = 0
-
         predictions = list()
-        for text, sentiment in zip(X, y):
+
+        for text, actual_sentiment in zip(X, y):
             positive = self.probability_positive
             negative = self.probability_negative
             for word in str(text).split():
@@ -39,17 +38,8 @@ class BayesClassifier():
                     positive *= self.word_probabilities[word][1]
 
             predicted_sentiment = int(positive >= negative)
-
             predictions.append(predicted_sentiment)
-
-            if predicted_sentiment == 1 and sentiment == 1:
-                self.tp += 1
-            elif predicted_sentiment == 1 and sentiment == 0:
-                self.fp += 1
-            elif predicted_sentiment == 0 and sentiment == 0:
-                self.tn += 1
-            elif predicted_sentiment == 0 and sentiment == 1:
-                self.fn += 1
+            self.__update_score(predicted_sentiment, actual_sentiment)
 
         return np.array(predictions)
 
@@ -59,7 +49,6 @@ class BayesClassifier():
         negative_predictive_value = self.tn / (self.tn + self.fn)
         recall = self.tp / (self.tp + self.fn)
         specificity = self.tn / (self.tn + self.fp)
-        f1_score = 2 / (1/recall + 1/precision)
 
         print(f'tp: {self.tp},    fp: {self.fp}') 
         print(f'fn: {self.fn},   tn: {self.tn}')
@@ -69,7 +58,6 @@ class BayesClassifier():
         print(f'negative predictive value: {negative_predictive_value}')
         print(f'recall:                    {recall}')
         print(f'specificity:               {specificity}')
-        print(f'f1 score:                  {f1_score}')
         print()
 
     def __count_target_values(self):
@@ -90,20 +78,18 @@ class BayesClassifier():
         neg = self.X[self.y == 0]
         pos = self.X[self.y == 1]
     
-        counter = Counter()
-
         count_words = np.vectorize(
-                lambda tweet: counter.update([
-                    word for word in str(tweet).split()
+                lambda tweet, counter: counter.update([
+                    word.lower() for word in str(tweet).split()
                     if word not in self.stopwords
                 ]))
 
-        count_words(pos)
+        counter = Counter()
+        count_words(pos, counter)
         self.positive_words = dict(counter.most_common(self.dictionary_size))
         
-        counter = Counter() # reset the counter
-
-        count_words(neg)
+        counter = Counter()
+        count_words(neg, counter)
         self.negative_words = dict(counter.most_common(self.dictionary_size))
 
     def __compute_probability_table(self):
@@ -113,16 +99,28 @@ class BayesClassifier():
         """
         self.word_probabilities = dict()
         word_count = len(set().union(self.positive_words.keys(), self.negative_words.keys()))
-        default_value = 0 if self.laplace == 0 else self.laplace / (word_count * self.laplace)
+
+        zero_probability = 0 if self.laplace == 0 else self.laplace / (word_count * self.laplace)
+        default_probability = [zero_probability, zero_probability]
 
         for word, freq in self.negative_words.items():
-            self.word_probabilities.setdefault(word, [default_value, default_value])[0] = \
+            self.word_probabilities.setdefault(word, default_probability)[0] = \
                     (freq + self.laplace) / (self.n_negatives + word_count * self.laplace)
 
         for word, freq in self.positive_words.items():
-            self.word_probabilities.setdefault(word, [default_value, default_value])[1] = \
+            self.word_probabilities.setdefault(word, default_probability)[1] = \
                     (freq + self.laplace) / (self.n_positives + word_count * self.laplace)
 
     def __load_stopwords(self):
         with open("data/stopwords") as file:
             self.stopwords = { word.strip(): True for word in file.readlines() }
+
+    def __update_score(self, predicted_sentiment, actual_sentiment):
+        if predicted_sentiment == 1 and actual_sentiment == 1:
+            self.tp += 1
+        elif predicted_sentiment == 1 and actual_sentiment == 0:
+            self.fp += 1
+        elif predicted_sentiment == 0 and actual_sentiment == 0:
+            self.tn += 1
+        elif predicted_sentiment == 0 and actual_sentiment == 1:
+            self.fn += 1
