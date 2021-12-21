@@ -60,6 +60,10 @@ class BayesClassifier():
         print(f'specificity:               {specificity}')
         print()
 
+    def score(self):
+        accuracy = (self.tp + self.tn) / (self.tp + self.tn + self.fp + self.fn)
+        return accuracy
+
     def __count_target_values(self):
         self.n_negatives = np.count_nonzero(self.y == 0)
         self.n_positives = np.count_nonzero(self.y == 1)
@@ -100,15 +104,14 @@ class BayesClassifier():
         self.word_probabilities = dict()
         word_count = len(set().union(self.positive_words.keys(), self.negative_words.keys()))
 
-        zero_probability = 0 if self.laplace == 0 else self.laplace / (word_count * self.laplace)
-        default_probability = [zero_probability, zero_probability]
+        default_value = 0 if self.laplace == 0 else self.laplace / (word_count * self.laplace)
 
         for word, freq in self.negative_words.items():
-            self.word_probabilities.setdefault(word, default_probability)[0] = \
+            self.word_probabilities.setdefault(word, [default_value, default_value])[0] = \
                     (freq + self.laplace) / (self.n_negatives + word_count * self.laplace)
 
         for word, freq in self.positive_words.items():
-            self.word_probabilities.setdefault(word, default_probability)[1] = \
+            self.word_probabilities.setdefault(word, [default_value, default_value])[1] = \
                     (freq + self.laplace) / (self.n_positives + word_count * self.laplace)
 
     def __load_stopwords(self):
