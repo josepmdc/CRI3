@@ -23,11 +23,15 @@ El format del dataset es el següent:
 # Implementació
 
 ## Lectura del dataset
+Funció: `load_dataset`
+
 El primer pas és llegir el dataset per poder treballar amb ell. Per fer-ho
 s'ha fet ús de la llibreria pandas. En aquest pas s'eliminen les columnes de ID
 i data, ja que no ens serveixen per res.
 
 ## Divisió en conjunt de train i test
+Funció: `train_test_split`
+
 Un cop tenim les dades el següent pas es dividir en conjunt de train i test.
 Per aquest pas també s'ha utilitzat padas. Per crear el conjunt d'entrenament,
 el que es fa és agrupar les dades segons el seu sentiment (0 o 1) i s'agafa una
@@ -45,16 +49,22 @@ BayesClassifier, la qual conté totes les funcions necessàries per entrenar el
 model i fer prediccions.
 
 ### Entrenament
+Funció: `fit`
+
 Per tal d'entrenar el model s'ha de cridar la funció fit, la qual rep les dades
 d'entrenament per paràmetre. La seva funcionalitat és cridar a la resta de
 funcions que ens permetran entrenar el model.
 
 ### Calcul dels priors: P(positiu) i P(negatiu)
+Funció: `__compute_target_probabilities`
+
 Per tal de calcular els priors, és tan senzill com contar quants tweets són
 positius i dividir-ho entre el total i el mateix per als negatius. Per fer-ho
 es fa amb numpy, ja que les dades estan a un numpy array i aporta bon rendiment.
 
 ### Creació dels diccionaris
+Funció: `__extract_words`
+
 S'han creat dos diccionaris, un amb les paraules dels tweets positius i un
 altre amb les paraules dels tweets negatius. Per tal de crear aquests
 diccionaris, es fa servir la classe 'Counter' del mòdul collections de
@@ -63,10 +73,14 @@ seu sentiment, i per cada tweet, es crea una llista amb les paraules que conté,
 i es passa al 'Counter' el qual genera un diccionari amb el nombre d'ocurrències
 de cada paraula. Hi ha dos comptadors, un per les paraules positives i un per les
 paraules negatives. La classe Counter ens va perfecte perquè disposa de la
-funció 'most_common' que retorna els $n$ elements més frequents. En cas que
+funció `most_common` que retorna els $n$ elements més frequents. En cas que
 $n$ sigui 'None' es retornen tots els elements. Això ens permet que a l'hora d'escollir
 la mida del diccionari, de cara al següent apartat, només haguem de
-cridar a aquesta funció.
+cridar a aquesta funció. 
+
+A l'hora de contar les paraules s'exclouen les paraules buides ("stopwords" en
+anglès), ja que aquestes no acostumen a aportar significat sentimental,
+i s'obtenen millors resultats si les ometem.
 
 El format dels diccionaris que es retornen és el següent:
 
@@ -80,6 +94,8 @@ El format dels diccionaris que es retornen és el següent:
     }
 
 ### Creació de la taula de probabilitats
+Funció: `__compute_probability_table`
+
 Per tal de poder aplicar Naive Bayes necessitem una taula amb les probabilitats
 condicionades de cada paraula. La taula es genera de la forma següent:
 Per cada paraula en els diccionaris de l'apartat anterior, es divideix el nombre
@@ -95,6 +111,8 @@ El resultat es retorna en forma de diccionari i té el format següent:
     }
 
 ## Predicció
+Funció: `predict`
+
 Un cop ja tenim totes les probabilitats calculades, ja podem fer prediccions
 aplicant Naive Bayes. El que es fa és, per cada paraula del tweet que es vol
 predir, multiplicar les seves probabilitats i finalment multiplicar per
@@ -107,6 +125,8 @@ $$S := \{Positiu, Negatiu\}$$
 $$\arg \max_{x_i \in S} P(x_i) \cdot \prod_{i=1}^{n} P(word_i|x_i)$$
 
 ## Validació dels resultats
+Funció: `classification_report` i `cross_validation_score`
+
 Per tal de validar com de bé s'estan classificant els resultats, es comparen
 les classificacions dels tweets de test amb les prediccions fetes i es calculen
 les següents metriques: accuracy, precision, negative predictive value, recall
